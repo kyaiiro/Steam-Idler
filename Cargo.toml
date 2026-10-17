@@ -1,0 +1,12 @@
+[package]
+name = "SteamAFK"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.37.0"
+image = { version = "0.25.10", features = ["jpeg", "png"]}
+reqwest = { version = "0.13.5", features = ["blocking", "json"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+steamworks = "0.13.1"
