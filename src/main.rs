@@ -1,6 +1,6 @@
 mod modules;
 use modules::{Game, steam};
-use eframe::egui::{self};
+use eframe::egui::{self, text_edit};
 
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions::default();
@@ -144,18 +144,29 @@ impl SteamIdler {
             });
         });
 
-        egui::Window::new("Game Details")
-            .open(&mut self.show_game_popup)
-            .show(ui.ctx(), |ui| {
-                if let Some(game) = &self.active {
-                    if let Some(texture) = &self.cover_texture {
-                        ui.image((texture.id(), texture.size_vec2()));
+        if self.show_game_popup {
+            egui::Modal::new(egui::Id::unique("game_details"))
+                .show(ui.ctx(), |ui| {
+                    ui.set_min_width(320.0);
+                    ui.heading("Game Details");
+
+                    if let Some(game) = &self.active {
+                        if let Some(texture) = &self.cover_texture {
+                            ui.add(
+                                egui::Image::new((texture.id(), texture.size_vec2()))
+                                    .max_size(egui::vec2(460.0, 260.0)),
+                            );
+                        }
+
+                        ui.heading(&game.title);
+                        ui.label(format!("App ID: {}", game.id));
                     }
 
-                    ui.heading(&game.title);
-                    ui.label(format!("App ID: {}", game.id));
-                }
-            });
+                    if ui.button("Close").clicked() {
+                        self.show_game_popup = false;
+                    }
+                });
+        }
     }
 
     fn show_idles(&mut self, ui: &mut egui::Ui) {
