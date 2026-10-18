@@ -1,6 +1,6 @@
 mod modules;
 use modules::{Game, steam};
-use eframe::egui::{self, text_edit};
+use eframe::egui::{self};
 
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions::default();
@@ -12,14 +12,8 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-#[derive(PartialEq)]
-enum Page {
-    Games,
-    Current,
-}
 
 struct SteamIdler {
-    page: Page,
     active: Option<Game>,
     search_id: String,
     rx: Option<std::sync::mpsc::Receiver<Result<(Game, Vec<u8>), String>>>,
@@ -30,7 +24,6 @@ struct SteamIdler {
 impl Default for SteamIdler {
     fn default() -> Self {
         Self {
-            page: Page::Games,
             active: None,
             search_id: String::new(),
             rx: None,
@@ -42,26 +35,6 @@ impl Default for SteamIdler {
 
 impl eframe::App for SteamIdler {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::Panel::left("nav_bar").show(ui, |ui| {
-            ui.vertical(|ui| {
-                if ui.selectable_label(self.page == Page::Games, "All Games").clicked() {
-                    self.page = Page::Games;
-                }
-                if ui.selectable_label(self.page == Page::Current, "Active Idles").clicked() {
-                    self.page = Page::Current;
-                }
-            });
-        });
-
-        match self.page {
-            Page::Games => self.show_games(ui),
-            Page::Current => self.show_idles(ui),
-        }
-    }
-}
-
-impl SteamIdler {
-    fn show_games(&mut self, ui: &mut egui::Ui) {
         if let Some(rx) = self.rx.take() {
             match rx.try_recv() {
                 Ok(Ok((game, bytes))) => match image::load_from_memory(&bytes) {
@@ -115,31 +88,13 @@ impl SteamIdler {
                                 let _ = tx.send(result);
                                 ctx.request_repaint();
                             });
+
+                            self.show_game_popup = true
                         }
                         Err(_) => {
                             eprint!("Enter a valid numeric game ID, such as 4732690");
                         }
                     }
-                    ui.request_repaint();
-                }
-
-                if let Some(game) = &self.active {
-                    if let Some(texture) = &self.cover_texture {
-                        let image = egui::Image::from_texture((texture.id(), texture.size_vec2()))
-                            .sense(egui::Sense::click());
-                        let response = ui.add(image);
-                        if response.clicked() {
-                            self.show_game_popup = true;
-                            println!("Clicked")
-                        }
-                    }
-                    ui.label(egui::RichText::from(
-                        format!("{}", game.title))
-                        .size(32.0)
-                        .color(egui::Color32::WHITE)
-                    );
-                } else {
-                    ui.label("Enter a game id above");
                 }
             });
         });
@@ -153,13 +108,11 @@ impl SteamIdler {
                     if let Some(game) = &self.active {
                         if let Some(texture) = &self.cover_texture {
                             ui.add(
-                                egui::Image::new((texture.id(), texture.size_vec2()))
-                                    .max_size(egui::vec2(460.0, 260.0)),
+                                egui::Image::new((texture.id(), texture.size_vec2())).max_size(egui::vec2(460.0, 260.0)),
                             );
                         }
-
                         ui.heading(&game.title);
-                        ui.label(format!("App ID: {}", game.id));
+                        let duration = ui.add(egui::TextEdit::singleline(&mut self.idle_duration).hint_text("Duration"))
                     }
 
                     if ui.button("Close").clicked() {
@@ -167,9 +120,5 @@ impl SteamIdler {
                     }
                 });
         }
-    }
-
-    fn show_idles(&mut self, ui: &mut egui::Ui) {
-        
     }
 }
