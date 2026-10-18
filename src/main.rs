@@ -112,7 +112,7 @@ impl eframe::App for SteamIdler {
                             );
                         }
                         ui.heading(&game.title);
-                        let duration = ui.add(egui::TextEdit::singleline(&mut self.idle_duration).hint_text("Duration"))
+                        let duration = ui.add(egui::TextEdit::singleline(&mut self.idle_duration).hint_text("Duration")) //TODO add duration input
                     }
 
                     if ui.button("Close").clicked() {
