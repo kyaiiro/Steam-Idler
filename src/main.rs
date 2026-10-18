@@ -1,6 +1,7 @@
 mod modules;
 use modules::{Game, steam};
 use eframe::egui::{self};
+use std::{sync::{Arc, atomic::{AtomicBool, Ordering}}, thread};
 
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions::default();
@@ -12,6 +13,11 @@ fn main() -> eframe::Result<()> {
     )
 }
 
+struct IdleSession {
+    game: Game,
+    idle_time: u32,
+    stop: Arc<AtomicBool>,
+}
 
 struct SteamIdler {
     active: Option<Game>,
@@ -19,7 +25,10 @@ struct SteamIdler {
     rx: Option<std::sync::mpsc::Receiver<Result<(Game, Vec<u8>), String>>>,
     cover_texture: Option<egui::TextureHandle>,
     show_game_popup: bool,
+    idle_duration: String,
+    active_idle: Option<IdleSession>,
 }
+
 
 impl Default for SteamIdler {
     fn default() -> Self {
@@ -29,6 +38,8 @@ impl Default for SteamIdler {
             rx: None,
             cover_texture: None,
             show_game_popup: false,
+            idle_duration: String::new(),
+            active_idle: None,
         }
     }
 }
@@ -112,7 +123,38 @@ impl eframe::App for SteamIdler {
                             );
                         }
                         ui.heading(&game.title);
-                        let duration = ui.add(egui::TextEdit::singleline(&mut self.idle_duration).hint_text("Duration")) //TODO add duration input
+                        ui.add(egui::TextEdit::singleline(&mut self.idle_duration).hint_text("Idle duration (0 is until manual stop)"));
+                        
+                        if self.active_idle.is_some() {
+                            if ui.button("Stop Idle").clicked() {
+                                if let Some(session) = &self.active_idle {
+                                    session.stop.store(true, Ordering::SeqCst);
+                                }
+                                self.active_idle = None;
+                            }
+                        } else if ui.button("Idle").clicked() {
+                            let game_id: u32 = self.search_id.trim().parse().unwrap_or(0);
+                            let idle_time: u32 = self.idle_duration.trim().parse().unwrap_or(0);
+
+                            if game_id == 0 {
+                                eprintln!("Invalid game ID");
+                                return;
+                            }
+
+                            let game_clone = game.clone();
+                            let stop = Arc::new(AtomicBool::new(false));
+                            let stop_for_thread = stop.clone();
+
+                            std::thread::spawn(move || {
+                                steam::idle(game_id, idle_time, stop_for_thread);
+                            });
+
+                            self.active_idle = Some(IdleSession {
+                                game: game_clone,
+                                idle_time,
+                                stop,
+                            });
+                        }
                     }
 
                     if ui.button("Close").clicked() {
