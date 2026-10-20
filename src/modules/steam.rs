@@ -1,39 +1,27 @@
 use super::Game;
-use std::{collections::HashMap, process, sync::{Arc, atomic::{AtomicBool, Ordering}}, thread, time::{Duration, Instant}};
-use steamworks::Client;
 use serde::Deserialize;
+use std::{
+    collections::HashMap,
+    thread,
+    time::{Duration, Instant},
+};
+use steamworks::Client;
 
-pub fn idle(appid: u32, duration: u32, stop: Arc<AtomicBool>) {
-    let client = Client::init_app(appid).unwrap_or_else(|e| {
-        eprintln!("Steam init failed: {e}. Is Steam running and do you own this app?");
-        process::exit(1);
-    });
+pub fn idle(appid: u32, duration: Option<Duration>) -> Result<(), String> {
+    let client = Client::init_app(appid).map_err(|e| {
+        format!("Steam init failed: {e}. Is Steam running and do you own this app?")
+    })?;
 
-    if duration == 0 {
-        println!("Idling {appid} until Ctrl+C.");
-    } else {
-        println!("Idling {appid} for {duration}s. Ctrl+C to stop early");
-    }
+    println!("Idling: {appid}");
+    let deadline = duration.map(|d| Instant::now() + d);
 
-    let start = Instant::now();
-    let max_duration = Duration::from_secs(duration as u64);
-
-    loop {
-        if stop.load(Ordering::SeqCst) {
-            println!("Stopping idle for {appid}");
-            break;
-        }
-
-        if duration != 0 && start.elapsed() >= max_duration {
-            break;
-        }
-
+    while deadline.map_or(true, |d| Instant::now() < d) {
         client.run_callbacks();
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_millis(250));
     }
 
     println!("Done");
-    drop(client); //TODO Make the drop logic actually drop the process
+    Ok(())
 }
 
 #[derive(Deserialize)]
